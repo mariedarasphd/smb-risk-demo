@@ -1,3 +1,6 @@
+# -------------------------------------------------
+# app.py – Streamlit demo with Tiffany‑blue theme
+# -------------------------------------------------
 import streamlit as st
 import pandas as pd
 import pathlib
@@ -10,7 +13,7 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer
 CUSTOM_CSS = """
 body {
     background-color: #0ABAB5;      /* Tiffany blue */
-    color: #ffffff;                /* White text */
+    color: #ffffff;                /* White text for contrast */
 }
 [data-testid="stSidebar"] {
     background-color: #0ABAB5;
@@ -32,39 +35,71 @@ footer {
 """
 st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 
-# Path to the logo (must be in repo root)
-logo_path = pathlib.Path(__file__).parent / "logo.png"
-st.sidebar.image(str(logo_path), width=120)   # logo in sidebar
+# -------------------------------------------------
+# 0️⃣‑B  Show the logo (place it in the sidebar)
+# -------------------------------------------------
+logo_path = pathlib.Path(__file__).parent / "logo.png"   # <-- make sure logo.png is in the repo root
+st.sidebar.image(str(logo_path), width=120)   # you can also use st.image() to put it on the main page
 
 # -------------------------------------------------
-# 1️⃣ Load the sample CSV (no caching)
+# 1️⃣  Load the sample CSV (no caching – tiny demo file)
 # -------------------------------------------------
-def load_data():
+def load_data() -> pd.DataFrame:
+    """
+    Reads the CSV that lives next to this script.
+    Returns a **copy** so the DataFrame can be mutated safely later.
+    """
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
-    df = pd.read_csv(
-        data_path,
-        parse_dates=[
-            "order_date_time",
-            "synthetic_date",
-            "Survey_response_Date",
-        ],
-    )
-    return df
 
-# Now we have a fresh, mutable DataFrame every run
+    # ---- sanity check: does the file exist? ----
+    if not data_path.is_file():
+        raise FileNotFoundError(
+            f"❌ CSV not found at {data_path}. "
+            "Make sure the file is named exactly 'sample_flagged.csv' "
+            "and lives in the repository root."
+        )
+
+    # ---- read the CSV (use the Python engine – works on any CSV) ----
+    try:
+        df = pd.read_csv(
+            data_path,
+            parse_dates=[
+                "order_date_time",
+                "synthetic_date",
+                "Survey_response_Date",
+            ],
+            engine="python",          # fallback engine – safe for all CSV quirks
+            encoding="utf-8",        # most CSVs are UTF‑8
+        )
+    except Exception as exc:
+        # If pandas still fails, surface a clear error message
+        raise RuntimeError(
+            f"❌ Failed to read CSV at {data_path}: {exc}"
+        ) from exc
+
+    # Return a fresh copy; the app will freely mutate this DataFrame
+    return df.copy()
+
+
+# Load the data once at startup (no caching needed for a 200‑row sample)
 df = load_data()
 
 # -------------------------------------------------
 # 2️⃣  UI layout
 # -------------------------------------------------
-st.set_page_config(page_title="SMB Risk Dashboard",
-                   layout="wide",
-                   page_icon="🔍")
+st.set_page_config(
+    page_title="SMB Risk Dashboard",
+    layout="wide",
+    page_icon="🔍"
+)
 
 st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
-st.markdown("""
-A lightweight demo that joins **customer remarks** with **synthetic transaction data**, runs **sentiment analysis**, and highlights high‑value, negative‑sentiment cases.
-""")
+st.markdown(
+    """
+    A lightweight demo that joins **customer remarks** with **synthetic transaction data**, 
+    runs **sentiment analysis**, and highlights high‑value, negative‑sentiment cases.
+    """
+)
 
 # ---- Sidebar filters -------------------------------------------------
 st.sidebar.header("🔧 Filters")
@@ -73,7 +108,7 @@ price_min = st.sidebar.slider(
     min_value=0,
     max_value=int(df["Item_price"].max()),
     value=200,
-    step=50
+    step=50,
 )
 
 sentiment_max = st.sidebar.slider(
@@ -81,35 +116,43 @@ sentiment_max = st.sidebar.slider(
     min_value=-1.0,
     max_value=0.0,
     value=-0.4,
-    step=0.05
+    step=0.05,
 )
 
 channel_opts = st.sidebar.multiselect(
     "Channel",
     options=df["channel_name"].dropna().unique(),
-    default=df["channel_name"].dropna().unique().tolist()
+    default=df["channel_name"].dropna().unique().tolist(),
 )
 
 # ---- Apply filters ----------------------------------------------------
 filtered = df[
-    (df["Item_price"] > price_min) &
-    (df["sentiment_score"] < sentiment_max) &
-    (df["channel_name"].isin(channel_opts))
+    (df["Item_price"] > price_min)
+    & (df["sentiment_score"] < sentiment_max)
+    & (df["channel_name"].isin(channel_opts))
 ]
 
 st.subheader(f"📊 {len(filtered)} flagged rows (out of {len(df)} total)")
 
 # ---- Table ------------------------------------------------------------
 cols_to_show = [
-    "Unique id", "Order_id", "order_date_time",
-    "Customer Remarks", "sentiment_score", "Item_price",
-    "synthetic_amount", "synthetic_merchant",
-    "channel_name", "CSAT Score"
+    "Unique id",
+    "Order_id",
+    "order_date_time",
+    "Customer Remarks",
+    "sentiment_score",
+    "Item_price",
+    "synthetic_amount",
+    "synthetic_merchant",
+    "channel_name",
+    "CSAT Score",
 ]
 
-st.dataframe(filtered[cols_to_show].reset_index(drop=True),
-             height=400,
-             use_container_width=True)
+st.dataframe(
+    filtered[cols_to_show].reset_index(drop=True),
+    height=400,
+    use_container_width=True,
+)
 
 # ---- Quick metrics ----------------------------------------------------
 st.subheader("💡 Quick Insights")
@@ -121,14 +164,16 @@ col3.metric("Mean Sentiment", f"{filtered['sentiment_score'].mean():.2f}")
 
 # ---- Scatter chart ----------------------------------------------------
 st.subheader("📈 Amount vs. Sentiment")
-chart_data = filtered[["Item_price", "synthetic_amount", "sentiment_score"]]
-st.scatter_chart(
-    chart_data.rename(columns={
+chart_data = filtered[
+    ["Item_price", "synthetic_amount", "sentiment_score"]
+].rename(
+    columns={
         "Item_price": "Real Amount",
         "synthetic_amount": "Synthetic Amount",
-        "sentiment_score": "Sentiment"
-    })
+        "sentiment_score": "Sentiment",
+    }
 )
+st.scatter_chart(chart_data)
 
 # ---- Download button -------------------------------------------------
 csv_bytes = filtered.to_csv(index=False).encode()
@@ -136,5 +181,5 @@ st.download_button(
     label="💾 Download filtered rows (CSV)",
     data=csv_bytes,
     file_name="flagged_filtered.csv",
-    mime="text/csv"
+    mime="text/csv",
 )
