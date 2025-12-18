@@ -120,6 +120,9 @@ st.set_page_config(
     page_icon="🔍"
 )
 
+# Add a tiny vertical spacer
+st.write("")          # or: st.markdown("<br>", unsafe_allow_html=True)
+
 st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
 st.markdown(
     """
