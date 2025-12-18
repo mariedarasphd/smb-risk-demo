@@ -1,9 +1,10 @@
 # -------------------------------------------------
-# app.py – Streamlit demo with Tiffany‑blue theme
+# app.py – Streamlit demo (no caching, robust CSV load)
 # -------------------------------------------------
 import streamlit as st
 import pandas as pd
 import pathlib
+import os
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
@@ -13,7 +14,7 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer
 CUSTOM_CSS = """
 body {
     background-color: #0ABAB5;      /* Tiffany blue */
-    color: #ffffff;                /* White text for contrast */
+    color: #ffffff;                /* White text */
 }
 [data-testid="stSidebar"] {
     background-color: #0ABAB5;
@@ -36,18 +37,26 @@ footer {
 st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 
 # -------------------------------------------------
-# 0️⃣‑B  Show the logo (place it in the sidebar)
+# 0️⃣‑B  Show the logo (sidebar)
 # -------------------------------------------------
-logo_path = pathlib.Path(__file__).parent / "logo.png"   # <-- make sure logo.png is in the repo root
-st.sidebar.image(str(logo_path), width=120)   # you can also use st.image() to put it on the main page
+logo_path = pathlib.Path(__file__).parent / "logo.png"
+st.sidebar.image(str(logo_path), width=120)
 
 # -------------------------------------------------
-# 1️⃣  Load the sample CSV (no caching – tiny demo file)
+# DEBUG INFO – show what the container sees
+# -------------------------------------------------
+st.subheader("🔎 Debug info (remove later)")
+cwd = pathlib.Path.cwd()
+st.write(f"**Current working directory:** `{cwd}`")
+st.write("**Files in repo root:**", sorted([p.name for p in cwd.iterdir() if p.is_file()]))
+
+# -------------------------------------------------
+# 1️⃣  Load the sample CSV (no caching)
 # -------------------------------------------------
 def load_data() -> pd.DataFrame:
     """
     Reads the CSV that lives next to this script.
-    Returns a **copy** so the DataFrame can be mutated safely later.
+    Returns a fresh copy that can be mutated safely.
     """
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
 
@@ -59,7 +68,7 @@ def load_data() -> pd.DataFrame:
             "and lives in the repository root."
         )
 
-    # ---- read the CSV (use the Python engine – works on any CSV) ----
+    # ---- read the CSV (use the safe Python engine) ----
     try:
         df = pd.read_csv(
             data_path,
@@ -68,20 +77,18 @@ def load_data() -> pd.DataFrame:
                 "synthetic_date",
                 "Survey_response_Date",
             ],
-            engine="python",          # fallback engine – safe for all CSV quirks
+            engine="python",          # fallback engine – works on any CSV
             encoding="utf-8",        # most CSVs are UTF‑8
         )
     except Exception as exc:
-        # If pandas still fails, surface a clear error message
         raise RuntimeError(
             f"❌ Failed to read CSV at {data_path}: {exc}"
         ) from exc
 
-    # Return a fresh copy; the app will freely mutate this DataFrame
+    # Return a copy so later mutations are safe
     return df.copy()
 
-
-# Load the data once at startup (no caching needed for a 200‑row sample)
+# Load the data once at startup
 df = load_data()
 
 # -------------------------------------------------
