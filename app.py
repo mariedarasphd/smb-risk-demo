@@ -45,10 +45,10 @@ st.sidebar.image(str(logo_path), width=120)
 # -------------------------------------------------
 # DEBUG INFO – show what the container sees
 # -------------------------------------------------
-st.subheader("🔎 Debug info (remove later)")
-cwd = pathlib.Path.cwd()
-st.write(f"**Current working directory:** `{cwd}`")
-st.write("**Files in repo root:**", sorted([p.name for p in cwd.iterdir() if p.is_file()]))
+# st.subheader("🔎 Debug info (remove later)")
+# cwd = pathlib.Path.cwd()
+# st.write(f"**Current working directory:** `{cwd}`")
+# st.write("**Files in repo root:**", sorted([p.name for p in cwd.iterdir() if p.is_file()]))
 
 # -------------------------------------------------
 # 1️⃣  Load the sample CSV (no caching, robust date handling)
