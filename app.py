@@ -37,21 +37,22 @@ logo_path = pathlib.Path(__file__).parent / "logo.png"
 st.sidebar.image(str(logo_path), width=120)   # logo in sidebar
 
 # -------------------------------------------------
-# 1️⃣  Load the sample CSV (cached, then copy)
+# 1️⃣ Load the sample CSV (no caching)
 # -------------------------------------------------
-@st.cache_data(show_spinner=False, ttl=86400)   # cache for 24 h
 def load_data():
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
     df = pd.read_csv(
         data_path,
-        parse_dates=["order_date_time",
-                     "synthetic_date",
-                     "Survey_response_Date"]
+        parse_dates=[
+            "order_date_time",
+            "synthetic_date",
+            "Survey_response_Date",
+        ],
     )
     return df
 
-# Make a mutable copy for the rest of the script
-df = load_data().copy()
+# Now we have a fresh, mutable DataFrame every run
+df = load_data()
 
 # -------------------------------------------------
 # 2️⃣  UI layout
