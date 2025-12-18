@@ -51,7 +51,7 @@ st.write(f"**Current working directory:** `{cwd}`")
 st.write("**Files in repo root:**", sorted([p.name for p in cwd.iterdir() if p.is_file()]))
 
 # -------------------------------------------------
-# 1️⃣  Load the sample CSV (no caching)
+# 1️⃣  Load the sample CSV (no caching, robust date handling)
 # -------------------------------------------------
 def load_data() -> pd.DataFrame:
     """
@@ -72,27 +72,34 @@ def load_data() -> pd.DataFrame:
     try:
         df = pd.read_csv(
             data_path,
-            parse_dates=[
-                "order_date_time",
-                "synthetic_date",
-                "Survey_response_Date",
-            ],
             engine="python",          # fallback engine – works on any CSV
             encoding="utf-8",        # most CSVs are UTF‑8
         )
     except Exception as exc:
-        # Show the real pandas error in the UI (instead of a redacted RuntimeError)
         st.error(
             f"❌ **Failed to read CSV** at `{data_path}`.\n"
             f"**Pandas error:** `{type(exc).__name__}` – {exc}"
         )
-        # Stop execution – we cannot continue without a DataFrame
         raise
 
-    # Return a copy so downstream code can safely mutate it
+    # -------------------------------------------------
+    # 2️⃣  Convert any *existing* date columns to datetime
+    # -------------------------------------------------
+    expected_date_cols = ["order_date_time", "synthetic_date", "Survey_response_Date"]
+    existing_date_cols = [col for col in expected_date_cols if col in df.columns]
+
+    if existing_date_cols:
+        try:
+            df[existing_date_cols] = df[existing_date_cols].apply(pd.to_datetime)
+        except Exception as exc:
+            st.warning(
+                f"⚠️ Could not parse dates for columns {existing_date_cols}: {exc}. "
+                "They will remain as strings."
+            )
+
     return df.copy()
 
-# Load the data (debug panel will already show the file list)
+# Load the data (debug panel already shows the file list)
 df = load_data()
 
 # -------------------------------------------------
