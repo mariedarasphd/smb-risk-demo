@@ -1,5 +1,5 @@
 # -------------------------------------------------
-# app.py – Streamlit demo (no caching, robust CSV load)
+# app.py – Streamlit demo (no caching, robust CSV load, debug info)
 # -------------------------------------------------
 import streamlit as st
 import pandas as pd
@@ -81,14 +81,18 @@ def load_data() -> pd.DataFrame:
             encoding="utf-8",        # most CSVs are UTF‑8
         )
     except Exception as exc:
-        raise RuntimeError(
-            f"❌ Failed to read CSV at {data_path}: {exc}"
-        ) from exc
+        # Show the real pandas error in the UI (instead of a redacted RuntimeError)
+        st.error(
+            f"❌ **Failed to read CSV** at `{data_path}`.\n"
+            f"**Pandas error:** `{type(exc).__name__}` – {exc}"
+        )
+        # Stop execution – we cannot continue without a DataFrame
+        raise
 
-    # Return a copy so later mutations are safe
+    # Return a copy so downstream code can safely mutate it
     return df.copy()
 
-# Load the data once at startup
+# Load the data (debug panel will already show the file list)
 df = load_data()
 
 # -------------------------------------------------
