@@ -32,16 +32,14 @@ footer {
 """
 st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 
-# Path to the logo file (must be in the repo root)
+# Path to the logo (must be in repo root)
 logo_path = pathlib.Path(__file__).parent / "logo.png"
-
-# Show logo in the sidebar (you can also use st.image for main‑page placement)
-st.sidebar.image(str(logo_path), width=120)
+st.sidebar.image(str(logo_path), width=120)   # logo in sidebar
 
 # -------------------------------------------------
-# 1️⃣  Load the sample CSV (cached, mutable allowed)
+# 1️⃣  Load the sample CSV (cached, then copy)
 # -------------------------------------------------
-@st.cache_data(show_spinner=False, allow_output_mutation=True)
+@st.cache_data(show_spinner=False, ttl=86400)   # cache for 24 h
 def load_data():
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
     df = pd.read_csv(
@@ -52,14 +50,15 @@ def load_data():
     )
     return df
 
+# Make a mutable copy for the rest of the script
+df = load_data().copy()
+
 # -------------------------------------------------
 # 2️⃣  UI layout
 # -------------------------------------------------
-st.set_page_config(
-    page_title="SMB Risk Dashboard",
-    layout="wide",
-    page_icon="🔍"
-)
+st.set_page_config(page_title="SMB Risk Dashboard",
+                   layout="wide",
+                   page_icon="🔍")
 
 st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
 st.markdown("""
@@ -107,11 +106,9 @@ cols_to_show = [
     "channel_name", "CSAT Score"
 ]
 
-st.dataframe(
-    filtered[cols_to_show].reset_index(drop=True),
-    height=400,
-    use_container_width=True
-)
+st.dataframe(filtered[cols_to_show].reset_index(drop=True),
+             height=400,
+             use_container_width=True)
 
 # ---- Quick metrics ----------------------------------------------------
 st.subheader("💡 Quick Insights")
