@@ -1,4 +1,3 @@
-%%writefile app.py
 import streamlit as st
 import pandas as pd
 import pathlib
@@ -6,7 +5,7 @@ import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 # -------------------------------------------------
-# 0️⃣  Custom CSS + logo
+# 0️⃣  Custom CSS + logo (Tiffany blue background)
 # -------------------------------------------------
 CUSTOM_CSS = """
 body {
@@ -36,19 +35,21 @@ st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 # Path to the logo file (must be in the repo root)
 logo_path = pathlib.Path(__file__).parent / "logo.png"
 
-# ---- Show logo in the sidebar (you can also use st.image for main page) ----
+# Show logo in the sidebar (you can also use st.image for main‑page placement)
 st.sidebar.image(str(logo_path), width=120)
 
 # -------------------------------------------------
-# 1️⃣  Load the sample CSV (cached)
+# 1️⃣  Load the sample CSV (cached for speed)
 # -------------------------------------------------
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=86400)   # cache for 24 h
 def load_data():
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
-    df = pd.read_csv(data_path,
-                     parse_dates=["order_date_time",
-                                 "synthetic_date",
-                                 "Survey_response_Date"])
+    df = pd.read_csv(
+        data_path,
+        parse_dates=["order_date_time",
+                     "synthetic_date",
+                     "Survey_response_Date"]
+    )
     return df
 
 df = load_data()
@@ -56,9 +57,11 @@ df = load_data()
 # -------------------------------------------------
 # 2️⃣  UI layout
 # -------------------------------------------------
-st.set_page_config(page_title="SMB Risk Dashboard",
-                   layout="wide",
-                   page_icon="🔍")
+st.set_page_config(
+    page_title="SMB Risk Dashboard",
+    layout="wide",
+    page_icon="🔍"
+)
 
 st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
 st.markdown("""
@@ -67,17 +70,21 @@ A lightweight demo that joins **customer remarks** with **synthetic transaction 
 
 # ---- Sidebar filters -------------------------------------------------
 st.sidebar.header("🔧 Filters")
-price_min = st.sidebar.slider("Minimum Transaction Amount ($)",
-                              min_value=0,
-                              max_value=int(df["Item_price"].max()),
-                              value=200,
-                              step=50)
+price_min = st.sidebar.slider(
+    "Minimum Transaction Amount ($)",
+    min_value=0,
+    max_value=int(df["Item_price"].max()),
+    value=200,
+    step=50
+)
 
-sentiment_max = st.sidebar.slider("Maximum Sentiment (more negative → lower)",
-                                  min_value=-1.0,
-                                  max_value=0.0,
-                                  value=-0.4,
-                                  step=0.05)
+sentiment_max = st.sidebar.slider(
+    "Maximum Sentiment (more negative → lower)",
+    min_value=-1.0,
+    max_value=0.0,
+    value=-0.4,
+    step=0.05
+)
 
 channel_opts = st.sidebar.multiselect(
     "Channel",
@@ -102,9 +109,11 @@ cols_to_show = [
     "channel_name", "CSAT Score"
 ]
 
-st.dataframe(filtered[cols_to_show].reset_index(drop=True),
-             height=400,
-             use_container_width=True)
+st.dataframe(
+    filtered[cols_to_show].reset_index(drop=True),
+    height=400,
+    use_container_width=True
+)
 
 # ---- Quick metrics ----------------------------------------------------
 st.subheader("💡 Quick Insights")
@@ -117,11 +126,13 @@ col3.metric("Mean Sentiment", f"{filtered['sentiment_score'].mean():.2f}")
 # ---- Scatter chart ----------------------------------------------------
 st.subheader("📈 Amount vs. Sentiment")
 chart_data = filtered[["Item_price", "synthetic_amount", "sentiment_score"]]
-st.scatter_chart(chart_data.rename(columns={
-    "Item_price": "Real Amount",
-    "synthetic_amount": "Synthetic Amount",
-    "sentiment_score": "Sentiment"
-}))
+st.scatter_chart(
+    chart_data.rename(columns={
+        "Item_price": "Real Amount",
+        "synthetic_amount": "Synthetic Amount",
+        "sentiment_score": "Sentiment"
+    })
+)
 
 # ---- Download button -------------------------------------------------
 csv_bytes = filtered.to_csv(index=False).encode()
