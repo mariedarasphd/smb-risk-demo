@@ -39,9 +39,9 @@ logo_path = pathlib.Path(__file__).parent / "logo.png"
 st.sidebar.image(str(logo_path), width=120)
 
 # -------------------------------------------------
-# 1️⃣  Load the sample CSV (cached for speed)
+# 1️⃣  Load the sample CSV (cached, mutable allowed)
 # -------------------------------------------------
-@st.cache_data(ttl=86400)   # cache for 24 h
+@st.cache_data(show_spinner=False, allow_output_mutation=True)
 def load_data():
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
     df = pd.read_csv(
@@ -51,8 +51,6 @@ def load_data():
                      "Survey_response_Date"]
     )
     return df
-
-df = load_data()
 
 # -------------------------------------------------
 # 2️⃣  UI layout
