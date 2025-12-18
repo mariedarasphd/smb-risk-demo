@@ -90,13 +90,22 @@ def load_data() -> pd.DataFrame:
 
     if existing_date_cols:
         try:
-            df[existing_date_cols] = df[existing_date_cols].apply(pd.to_datetime)
+            # Automatic inference with dayfirst=True (handles "10-08-2023 15:52")
+            df[existing_date_cols] = df[existing_date_cols].apply(
+                lambda col: pd.to_datetime(col, dayfirst=True, errors="coerce")
+            )
+            # If you prefer an explicit format, uncomment the block below:
+            # fmt = "%d-%m-%Y %H:%M"
+            # df[existing_date_cols] = df[existing_date_cols].apply(
+            #     lambda col: pd.to_datetime(col, format=fmt, errors="coerce")
+            # )
         except Exception as exc:
             st.warning(
                 f"⚠️ Could not parse dates for columns {existing_date_cols}: {exc}. "
                 "They will remain as strings."
             )
 
+    # Return a fresh copy so downstream code can safely mutate it
     return df.copy()
 
 # Load the data (debug panel already shows the file list)
