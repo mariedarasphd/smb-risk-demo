@@ -1,0 +1,5 @@
+﻿pandas
+numpy
+tqdm
+nltk
+streamlit
