@@ -4,13 +4,21 @@
 import streamlit as st
 import pandas as pd
 import pathlib
-import os
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
-# -------------------------------------------------
-# 0️⃣  Custom CSS + logo (Tiffany blue background)
-# -------------------------------------------------
+# ----------------------------------------------------------------------
+# 0️⃣  Page configuration – must be the first Streamlit call
+# ----------------------------------------------------------------------
+st.set_page_config(
+    page_title="SMB Risk Dashboard",
+    layout="wide",
+    page_icon="🔍"
+)
+
+# ----------------------------------------------------------------------
+# 1️⃣  Custom CSS + logo (Tiffany blue background)
+# ----------------------------------------------------------------------
 CUSTOM_CSS = """
 body {
     background-color: #0ABAB5;      /* Tiffany blue */
@@ -36,93 +44,67 @@ footer {
 """
 st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 
-# -------------------------------------------------
+# ----------------------------------------------------------------------
 # 0️⃣‑B  Show the logo (sidebar)
-# -------------------------------------------------
+# ----------------------------------------------------------------------
 logo_path = pathlib.Path(__file__).parent / "logo.png"
 st.sidebar.image(str(logo_path), width=120)
 
-# -------------------------------------------------
-# DEBUG INFO – show what the container sees
-# -------------------------------------------------
-# st.subheader("🔎 Debug info (remove later)")
-# cwd = pathlib.Path.cwd()
-# st.write(f"**Current working directory:** `{cwd}`")
-# st.write("**Files in repo root:**", sorted([p.name for p in cwd.iterdir() if p.is_file()]))
+# ----------------------------------------------------------------------
+# 2️⃣  Ensure NLTK VADER data is available (runs once per session)
+# ----------------------------------------------------------------------
+try:
+    SentimentIntensityAnalyzer()
+except LookupError:
+    nltk.download("vader_lexicon", quiet=True)
 
-# -------------------------------------------------
-# 1️⃣  Load the sample CSV (no caching, robust date handling)
-# -------------------------------------------------
+# ----------------------------------------------------------------------
+# 3️⃣  Load the sample CSV (cached to avoid re‑reading on every interaction)
+# ----------------------------------------------------------------------
+@st.cache_data
 def load_data() -> pd.DataFrame:
-    """
-    Reads the CSV that lives next to this script.
-    Returns a fresh copy that can be mutated safely.
-    """
+    """Read `sample_flagged.csv` located next to this script."""
     data_path = pathlib.Path(__file__).parent / "sample_flagged.csv"
 
-    # ---- sanity check: does the file exist? ----
     if not data_path.is_file():
         raise FileNotFoundError(
-            f"❌ CSV not found at {data_path}. "
+            f"CSV not found at {data_path}. "
             "Make sure the file is named exactly 'sample_flagged.csv' "
             "and lives in the repository root."
         )
 
-    # ---- read the CSV (use the safe Python engine) ----
-    try:
-        df = pd.read_csv(
-            data_path,
-            engine="python",          # fallback engine – works on any CSV
-            encoding="utf-8",        # most CSVs are UTF‑8
-        )
-    except Exception as exc:
-        st.error(
-            f"❌ **Failed to read CSV** at `{data_path}`.\n"
-            f"**Pandas error:** `{type(exc).__name__}` – {exc}"
-        )
-        raise
+    df = pd.read_csv(
+        data_path,
+        engine="python",   # works on any CSV dialect
+        encoding="utf-8",
+    )
 
     # -------------------------------------------------
-    # 2️⃣  Convert any *existing* date columns to datetime
+    # Convert any *existing* date columns to datetime
     # -------------------------------------------------
     expected_date_cols = ["order_date_time", "synthetic_date", "Survey_response_Date"]
-    existing_date_cols = [col for col in expected_date_cols if col in df.columns]
+    existing_date_cols = [c for c in expected_date_cols if c in df.columns]
 
     if existing_date_cols:
         try:
-            # Automatic inference with dayfirst=True (handles "10-08-2023 15:52")
             df[existing_date_cols] = df[existing_date_cols].apply(
                 lambda col: pd.to_datetime(col, dayfirst=True, errors="coerce")
             )
-            # If you prefer an explicit format, uncomment the block below:
-            # fmt = "%d-%m-%Y %H:%M"
-            # df[existing_date_cols] = df[existing_date_cols].apply(
-            #     lambda col: pd.to_datetime(col, format=fmt, errors="coerce")
-            # )
         except Exception as exc:
             st.warning(
-                f"⚠️ Could not parse dates for columns {existing_date_cols}: {exc}. "
+                f"Could not parse dates for columns {existing_date_cols}: {exc}. "
                 "They will remain as strings."
             )
 
-    # Return a fresh copy so downstream code can safely mutate it
     return df.copy()
 
-# Load the data (debug panel already shows the file list)
+
+# Load once (cached)
 df = load_data()
 
-# -------------------------------------------------
-# 2️⃣  UI layout
-# -------------------------------------------------
-st.set_page_config(
-    page_title="SMB Risk Dashboard",
-    layout="wide",
-    page_icon="🔍"
-)
-
-# Add a tiny vertical spacer
-st.write("")          # or: st.markdown("<br>", unsafe_allow_html=True)
-
+# ----------------------------------------------------------------------
+# 4️⃣  UI layout – filters, tables, metrics, chart, download
+# ----------------------------------------------------------------------
 st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
 st.markdown(
     """
