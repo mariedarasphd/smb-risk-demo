@@ -105,7 +105,7 @@ df = load_data()
 # ----------------------------------------------------------------------
 # 4️⃣  UI layout – filters, tables, metrics, chart, download
 # ----------------------------------------------------------------------
-st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
+st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
 st.markdown(
     """
     A lightweight demo that joins **customer remarks** with **synthetic transaction data**, 
@@ -163,7 +163,7 @@ cols_to_show = [
 st.dataframe(
     filtered[cols_to_show].reset_index(drop=True),
     height=400,
-    use_container_width=True,
+    width='stretch',
 )
 
 # ---- Quick metrics ----------------------------------------------------
