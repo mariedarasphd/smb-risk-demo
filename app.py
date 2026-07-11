@@ -18,7 +18,7 @@ st.set_page_config(
 
 # ----------------------------------------------------------------------
 # 1️⃣  Custom CSS + logo (Tiffany blue background)
-# ----------------------------------------------------------------------
+# -----------------------------------------------------------------------
 CUSTOM_CSS = """
 body {
     background-color: #0ABAB5;      /* Tiffany blue */
@@ -163,7 +163,6 @@ cols_to_show = [
 st.dataframe(
     filtered[cols_to_show].reset_index(drop=True),
     height=400,
-    width='stretch',
 )
 
 # ---- Quick metrics ----------------------------------------------------
