@@ -1,11 +1,9 @@
 # -------------------------------------------------
-# app.py – Streamlit demo (robust CSV load, safe metrics)
+# app.py – Streamlit demo (lightweight, no NLTK)
 # -------------------------------------------------
 import streamlit as st
 import pandas as pd
 import pathlib
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 # ----------------------------------------------------------------------
 # 0️⃣  Page configuration – must be the first Streamlit call
@@ -51,26 +49,7 @@ logo_path = pathlib.Path(__file__).parent / "logo.png"
 st.sidebar.image(str(logo_path), width=120)
 
 # ----------------------------------------------------------------------
-# 2️⃣  Ensure NLTK VADER data is available (robust, won't hang)
-# ----------------------------------------------------------------------
-@st.cache_resource
-def get_sentiment_analyzer():
-    """Download VADER lexicon if needed and return analyzer. Cached."""
-    try:
-        return SentimentIntensityAnalyzer()
-    except LookupError:
-        nltk.download("vader_lexicon", quiet=True)
-        return SentimentIntensityAnalyzer()
-
-# Initialize once — wrapped so failure doesn't hang the app
-try:
-    analyzer = get_sentiment_analyzer()
-except Exception as e:
-    st.error(f"Could not initialize sentiment analyzer: {e}")
-    st.stop()
-
-# ----------------------------------------------------------------------
-# 3️⃣  Load the sample CSV (cached to avoid re‑reading on every interaction)
+# 2️⃣  Load the sample CSV (cached to avoid re‑reading on every interaction)
 # ----------------------------------------------------------------------
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -99,7 +78,7 @@ def load_data() -> pd.DataFrame:
     if existing_date_cols:
         try:
             df[existing_date_cols] = df[existing_date_cols].apply(
-                lambda col: pd.to_datetime(col, dayfirst=True, errors="coerce")
+                lambda col: pd.to_datetime(col, dayfirst=False, errors="coerce")
             )
         except Exception as exc:
             st.warning(
@@ -121,13 +100,13 @@ except Exception as e:
     st.stop()
 
 # ----------------------------------------------------------------------
-# 4️⃣  UI layout – filters, tables, metrics, chart, download
+# 3️⃣  UI layout – filters, tables, metrics, chart, download
 # ----------------------------------------------------------------------
 st.title("🔎 SMB Customer‑Sentiment + Transaction Risk Dashboard")
 st.markdown(
     """
     A lightweight demo that joins **customer remarks** with **synthetic transaction data**, 
-    runs **sentiment analysis**, and highlights high‑value, negative‑sentiment cases.
+    highlighting high‑value, negative‑sentiment cases.
     """
 )
 
@@ -136,14 +115,14 @@ st.sidebar.header("🔧 Filters")
 price_min = st.sidebar.slider(
     "Minimum Transaction Amount ($)",
     min_value=0,
-    max_value=int(df["Item_price"].max()),
+    max_value=int(df["Item_price"].max()) if not df.empty else 10000,
     value=200,
     step=50,
 )
 
 sentiment_max = st.sidebar.slider(
     "Maximum Sentiment (more negative → lower)",
-    min_value=-1.0,
+    min_value=float(df["sentiment_score"].min()) if not df.empty and "sentiment_score" in df.columns else -1.0,
     max_value=0.0,
     value=-0.4,
     step=0.05,
@@ -151,8 +130,8 @@ sentiment_max = st.sidebar.slider(
 
 channel_opts = st.sidebar.multiselect(
     "Channel",
-    options=df["channel_name"].dropna().unique(),
-    default=df["channel_name"].dropna().unique().tolist(),
+    options=df["channel_name"].dropna().unique() if not df.empty and "channel_name" in df.columns else [],
+    default=list(df["channel_name"].dropna().unique()) if not df.empty and "channel_name" in df.columns else [],
 )
 
 # ---- Apply filters ----------------------------------------------------
