@@ -1,5 +1,5 @@
 # -------------------------------------------------
-# app.py – Streamlit demo (no caching, robust CSV load, debug info)
+# app.py – Streamlit demo (robust CSV load, safe metrics)
 # -------------------------------------------------
 import streamlit as st
 import pandas as pd
@@ -18,7 +18,7 @@ st.set_page_config(
 
 # ----------------------------------------------------------------------
 # 1️⃣  Custom CSS + logo (Tiffany blue background)
-# -----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 CUSTOM_CSS = """
 body {
     background-color: #0ABAB5;      /* Tiffany blue */
@@ -51,12 +51,23 @@ logo_path = pathlib.Path(__file__).parent / "logo.png"
 st.sidebar.image(str(logo_path), width=120)
 
 # ----------------------------------------------------------------------
-# 2️⃣  Ensure NLTK VADER data is available (runs once per session)
+# 2️⃣  Ensure NLTK VADER data is available (robust, won't hang)
 # ----------------------------------------------------------------------
+@st.cache_resource
+def get_sentiment_analyzer():
+    """Download VADER lexicon if needed and return analyzer. Cached."""
+    try:
+        return SentimentIntensityAnalyzer()
+    except LookupError:
+        nltk.download("vader_lexicon", quiet=True)
+        return SentimentIntensityAnalyzer()
+
+# Initialize once — wrapped so failure doesn't hang the app
 try:
-    SentimentIntensityAnalyzer()
-except LookupError:
-    nltk.download("vader_lexicon", quiet=True)
+    analyzer = get_sentiment_analyzer()
+except Exception as e:
+    st.error(f"Could not initialize sentiment analyzer: {e}")
+    st.stop()
 
 # ----------------------------------------------------------------------
 # 3️⃣  Load the sample CSV (cached to avoid re‑reading on every interaction)
@@ -100,7 +111,14 @@ def load_data() -> pd.DataFrame:
 
 
 # Load once (cached)
-df = load_data()
+try:
+    df = load_data()
+except FileNotFoundError as e:
+    st.error(str(e))
+    st.stop()
+except Exception as e:
+    st.error(f"Error loading data: {e}")
+    st.stop()
 
 # ----------------------------------------------------------------------
 # 4️⃣  UI layout – filters, tables, metrics, chart, download
@@ -160,37 +178,44 @@ cols_to_show = [
     "CSAT Score",
 ]
 
-st.dataframe(
-    filtered[cols_to_show].reset_index(drop=True),
-    height=400,
-)
+if not filtered.empty:
+    st.dataframe(
+        filtered[cols_to_show].reset_index(drop=True),
+        height=400,
+    )
 
-# ---- Quick metrics ----------------------------------------------------
-st.subheader("💡 Quick Insights")
-col1, col2, col3 = st.columns(3)
+    # ---- Quick metrics ------------------------------------------------
+    st.subheader("💡 Quick Insights")
+    col1, col2, col3 = st.columns(3)
 
-col1.metric("Avg. Item Price", f"${filtered['Item_price'].mean():,.0f}")
-col2.metric("Avg. Synthetic Amount", f"${filtered['synthetic_amount'].mean():,.0f}")
-col3.metric("Mean Sentiment", f"{filtered['sentiment_score'].mean():.2f}")
+    avg_price = filtered['Item_price'].mean()
+    avg_amount = filtered['synthetic_amount'].mean()
+    avg_sentiment = filtered['sentiment_score'].mean()
 
-# ---- Scatter chart ----------------------------------------------------
-st.subheader("📈 Amount vs. Sentiment")
-chart_data = filtered[
-    ["Item_price", "synthetic_amount", "sentiment_score"]
-].rename(
-    columns={
-        "Item_price": "Real Amount",
-        "synthetic_amount": "Synthetic Amount",
-        "sentiment_score": "Sentiment",
-    }
-)
-st.scatter_chart(chart_data)
+    col1.metric("Avg. Item Price", f"${avg_price:,.0f}" if pd.notna(avg_price) else "N/A")
+    col2.metric("Avg. Synthetic Amount", f"${avg_amount:,.0f}" if pd.notna(avg_amount) else "N/A")
+    col3.metric("Mean Sentiment", f"{avg_sentiment:.2f}" if pd.notna(avg_sentiment) else "N/A")
 
-# ---- Download button -------------------------------------------------
-csv_bytes = filtered.to_csv(index=False).encode()
-st.download_button(
-    label="💾 Download filtered rows (CSV)",
-    data=csv_bytes,
-    file_name="flagged_filtered.csv",
-    mime="text/csv",
-)
+    # ---- Scatter chart ------------------------------------------------
+    st.subheader("📈 Amount vs. Sentiment")
+    chart_data = filtered[
+        ["Item_price", "synthetic_amount", "sentiment_score"]
+    ].rename(
+        columns={
+            "Item_price": "Real Amount",
+            "synthetic_amount": "Synthetic Amount",
+            "sentiment_score": "Sentiment",
+        }
+    )
+    st.scatter_chart(chart_data)
+
+    # ---- Download button ---------------------------------------------
+    csv_bytes = filtered.to_csv(index=False).encode()
+    st.download_button(
+        label="💾 Download filtered rows (CSV)",
+        data=csv_bytes,
+        file_name="flagged_filtered.csv",
+        mime="text/csv",
+    )
+else:
+    st.warning("No rows match the current filters. Try adjusting the sliders or channel selection.")
