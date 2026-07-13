@@ -1,8 +1,16 @@
 # -------------------------------------------------
-# app.py – Streamlit demo (lightweight, no NLTK)
+# app.py – Streamlit demo (pinned deps, ultra-safe)
 # -------------------------------------------------
+import sys
 import streamlit as st
-import pandas as pd
+
+# Check basic imports first (catch segfault sources early)
+try:
+    import pandas as pd
+except Exception as e:
+    st.error(f"Failed to import pandas: {e}")
+    sys.exit(1)
+
 import pathlib
 
 # ----------------------------------------------------------------------
@@ -46,7 +54,8 @@ st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 # 0️⃣‑B  Show the logo (sidebar)
 # ----------------------------------------------------------------------
 logo_path = pathlib.Path(__file__).parent / "logo.png"
-st.sidebar.image(str(logo_path), width=120)
+if logo_path.exists():
+    st.sidebar.image(str(logo_path), width=120)
 
 # ----------------------------------------------------------------------
 # 2️⃣  Load the sample CSV (cached to avoid re‑reading on every interaction)
@@ -69,29 +78,15 @@ def load_data() -> pd.DataFrame:
         encoding="utf-8",
     )
 
-    # -------------------------------------------------
-    # Convert any *existing* date columns to datetime
-    # -------------------------------------------------
-    expected_date_cols = ["order_date_time", "synthetic_date", "Survey_response_Date"]
-    existing_date_cols = [c for c in expected_date_cols if c in df.columns]
-
-    if existing_date_cols:
-        try:
-            df[existing_date_cols] = df[existing_date_cols].apply(
-                lambda col: pd.to_datetime(col, dayfirst=False, errors="coerce")
-            )
-        except Exception as exc:
-            st.warning(
-                f"Could not parse dates for columns {existing_date_cols}: {exc}. "
-                "They will remain as strings."
-            )
-
     return df.copy()
 
 
 # Load once (cached)
 try:
     df = load_data()
+    if df.empty:
+        st.error("CSV file is empty.")
+        st.stop()
 except FileNotFoundError as e:
     st.error(str(e))
     st.stop()
@@ -112,52 +107,73 @@ st.markdown(
 
 # ---- Sidebar filters -------------------------------------------------
 st.sidebar.header("🔧 Filters")
-price_min = st.sidebar.slider(
-    "Minimum Transaction Amount ($)",
-    min_value=0,
-    max_value=int(df["Item_price"].max()) if not df.empty else 10000,
-    value=200,
-    step=50,
-)
 
-sentiment_max = st.sidebar.slider(
-    "Maximum Sentiment (more negative → lower)",
-    min_value=float(df["sentiment_score"].min()) if not df.empty and "sentiment_score" in df.columns else -1.0,
-    max_value=0.0,
-    value=-0.4,
-    step=0.05,
-)
+# Safely get column values
+price_col = "Item_price" if "Item_price" in df.columns else None
+sentiment_col = "sentiment_score" if "sentiment_score" in df.columns else None
+channel_col = "channel_name" if "channel_name" in df.columns else None
 
-channel_opts = st.sidebar.multiselect(
-    "Channel",
-    options=df["channel_name"].dropna().unique() if not df.empty and "channel_name" in df.columns else [],
-    default=list(df["channel_name"].dropna().unique()) if not df.empty and "channel_name" in df.columns else [],
-)
+if price_col:
+    price_min = st.sidebar.slider(
+        "Minimum Transaction Amount ($)",
+        min_value=0,
+        max_value=int(df[price_col].max()) if not df[price_col].empty else 10000,
+        value=200,
+        step=50,
+    )
+else:
+    price_min = 0
+    st.warning("No 'Item_price' column found in CSV.")
+
+if sentiment_col:
+    sentiment_max = st.sidebar.slider(
+        "Maximum Sentiment (more negative → lower)",
+        min_value=float(df[sentiment_col].min()) if not df[sentiment_col].empty else -1.0,
+        max_value=0.0,
+        value=-0.4,
+        step=0.05,
+    )
+else:
+    sentiment_max = -0.4
+    st.warning("No 'sentiment_score' column found in CSV.")
+
+if channel_col:
+    channel_opts = st.sidebar.multiselect(
+        "Channel",
+        options=df[channel_col].dropna().unique(),
+        default=list(df[channel_col].dropna().unique()),
+    )
+else:
+    channel_opts = []
+    st.warning("No 'channel_name' column found in CSV.")
 
 # ---- Apply filters ----------------------------------------------------
-filtered = df[
-    (df["Item_price"] > price_min)
-    & (df["sentiment_score"] < sentiment_max)
-    & (df["channel_name"].isin(channel_opts))
-]
+if all([price_col, sentiment_col, channel_col]):
+    filtered = df[
+        (df[price_col] > price_min)
+        & (df[sentiment_col] < sentiment_max)
+        & (df[channel_col].isin(channel_opts))
+    ]
+elif price_col and sentiment_col:
+    filtered = df[
+        (df[price_col] > price_min)
+        & (df[sentiment_col] < sentiment_max)
+    ]
+else:
+    filtered = df.copy()
 
 st.subheader(f"📊 {len(filtered)} flagged rows (out of {len(df)} total)")
 
 # ---- Table ------------------------------------------------------------
 cols_to_show = [
-    "Unique id",
-    "Order_id",
-    "order_date_time",
-    "Customer Remarks",
-    "sentiment_score",
-    "Item_price",
-    "synthetic_amount",
-    "synthetic_merchant",
-    "channel_name",
-    "CSAT Score",
+    col for col in [
+        "Unique id", "Order_id", "order_date_time", "Customer Remarks",
+        "sentiment_score", "Item_price", "synthetic_amount",
+        "synthetic_merchant", "channel_name", "CSAT Score",
+    ] if col in df.columns
 ]
 
-if not filtered.empty:
+if not filtered.empty and cols_to_show:
     st.dataframe(
         filtered[cols_to_show].reset_index(drop=True),
         height=400,
@@ -167,26 +183,33 @@ if not filtered.empty:
     st.subheader("💡 Quick Insights")
     col1, col2, col3 = st.columns(3)
 
-    avg_price = filtered['Item_price'].mean()
-    avg_amount = filtered['synthetic_amount'].mean()
-    avg_sentiment = filtered['sentiment_score'].mean()
-
-    col1.metric("Avg. Item Price", f"${avg_price:,.0f}" if pd.notna(avg_price) else "N/A")
-    col2.metric("Avg. Synthetic Amount", f"${avg_amount:,.0f}" if pd.notna(avg_amount) else "N/A")
-    col3.metric("Mean Sentiment", f"{avg_sentiment:.2f}" if pd.notna(avg_sentiment) else "N/A")
+    if price_col:
+        avg_price = filtered[price_col].mean()
+        col1.metric("Avg. Item Price", f"${avg_price:,.0f}" if pd.notna(avg_price) else "N/A")
+    
+    if "synthetic_amount" in filtered.columns:
+        avg_amount = filtered['synthetic_amount'].mean()
+        col2.metric("Avg. Synthetic Amount", f"${avg_amount:,.0f}" if pd.notna(avg_amount) else "N/A")
+    
+    if sentiment_col:
+        avg_sentiment = filtered[sentiment_col].mean()
+        col3.metric("Mean Sentiment", f"{avg_sentiment:.2f}" if pd.notna(avg_sentiment) else "N/A")
 
     # ---- Scatter chart ------------------------------------------------
-    st.subheader("📈 Amount vs. Sentiment")
-    chart_data = filtered[
-        ["Item_price", "synthetic_amount", "sentiment_score"]
-    ].rename(
-        columns={
-            "Item_price": "Real Amount",
-            "synthetic_amount": "Synthetic Amount",
-            "sentiment_score": "Sentiment",
-        }
-    )
-    st.scatter_chart(chart_data)
+    if price_col and sentiment_col and "Item_price" in df.columns and "sentiment_score" in df.columns:
+        st.subheader("📈 Amount vs. Sentiment")
+        chart_data = filtered[
+            ["Item_price", "synthetic_amount" if "synthetic_amount" in filtered.columns else "Item_price", "sentiment_score"]
+        ].iloc[:, :3].rename(
+            columns={
+                "Item_price": "Real Amount",
+                "synthetic_amount" if "synthetic_amount" in filtered.columns else "Item_price": "Synthetic Amount",
+                "sentiment_score": "Sentiment",
+            }
+        ).dropna(axis=1, how='all')
+        
+        if not chart_data.empty:
+            st.scatter_chart(chart_data)
 
     # ---- Download button ---------------------------------------------
     csv_bytes = filtered.to_csv(index=False).encode()
@@ -197,4 +220,4 @@ if not filtered.empty:
         mime="text/csv",
     )
 else:
-    st.warning("No rows match the current filters. Try adjusting the sliders or channel selection.")
+    st.warning("No rows match the current filters or data is unavailable.")
